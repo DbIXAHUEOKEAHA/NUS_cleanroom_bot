@@ -9,7 +9,7 @@ import time
 import threading
 
 # Telegram Bot Token
-TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
+TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
 
 # File to Store Subscribers
 SUBSCRIBERS_FILE = "subscribers.json"
@@ -39,19 +39,24 @@ def extract_booking_table():
     soup = BeautifulSoup(response.text, "html.parser")
     tables = soup.find_all("table")
     equipment_options = []
-    for table in tables:
+
+    # Loop through the first table to get the first column (equipment)
+    for table in tables[:1]:  # Only parse the first table
         rows = table.find_all("tr")
         for row in rows:
             cols = row.find_all(["th", "td"])
             if cols:
                 equipment = cols[0].text.strip()  # First column is the equipment name
                 if equipment:
+                    equipment = equipment.split(" ")[1:]  # Remove the first element (day)
+                    equipment = " ".join(equipment).replace("(Rules)", "").strip()  # Remove "(Rules)"
                     equipment_options.append(equipment)
+
     return equipment_options
 
 # Command: Start
 def start(update, context):
-    update.message.reply_text("Welcome! Use /subscribe to get booking updates. Send /my_equipment to manage your equipment.")
+    update.message.reply_text("Welcome! Use /subscribe to get booking updates. Send /manage_equipment to manage your equipment.")
 
 # Command: Subscribe
 def subscribe(update, context):
@@ -59,10 +64,26 @@ def subscribe(update, context):
     subscribers = load_subscribers()
     subscribers[chat_id] = {"equipment": []}
     save_subscribers(subscribers)
-    update.message.reply_text("Send /my_equipment to manage your equipment.")
+    update.message.reply_text("Send /manage_equipment to manage your equipment.")
 
 # Command: My Equipment
 def my_equipment(update, context):
+    chat_id = str(update.message.chat_id)
+    subscribers = load_subscribers()
+    
+    # Get user's tracked equipment
+    user_equipment = subscribers.get(chat_id, {}).get("equipment", [])
+
+    if not user_equipment:
+        update.message.reply_text("❌ You are not subscribed to any equipment. Use /manage_equipment to subscribe.")
+        return
+
+    # Show only equipment user is subscribed to
+    equipment_list = "\n".join(user_equipment)
+    update.message.reply_text(f"📋 Your Subscribed Equipment:\n{equipment_list}")
+
+# Command: Manage Equipment
+def manage_equipment(update, context):
     chat_id = str(update.message.chat_id)
     subscribers = load_subscribers()
     
@@ -74,13 +95,12 @@ def my_equipment(update, context):
         update.message.reply_text("⚠️ Failed to fetch equipment options.")
         return
 
-    # Create Inline Keyboard Buttons
+    # Create Inline Keyboard Buttons for available equipment
     keyboard = []
-    if equipment_options:
-        for idx, equipment in enumerate(equipment_options):
-            button_text = f"🔘 {equipment}" if equipment in user_equipment else f"➕ {equipment}"
-            callback_data = f"toggle_{idx}"
-            keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+    for idx, equipment in enumerate(equipment_options):
+        button_text = f"🔘 {equipment}" if equipment in user_equipment else f"➕ {equipment}"
+        callback_data = f"toggle_{idx}"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
 
     keyboard.append([InlineKeyboardButton("❌ Unsubscribe", callback_data="unsubscribe")])
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -171,10 +191,11 @@ def main():
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("subscribe", subscribe))
     dp.add_handler(CommandHandler("my_equipment", my_equipment))
+    dp.add_handler(CommandHandler("manage_equipment", manage_equipment))
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
     # Register Callback Handler for Inline Buttons
-    #dp.add_handler(CallbackQueryHandler(button))
+    dp.add_handler(CallbackQueryHandler(button))
 
     # Start Monitoring in a Separate Thread
     threading.Thread(target=monitor_bookings, daemon=True, args=(updater.bot,)).start()

@@ -233,7 +233,28 @@ def button(update, context):
         query.message.reply_text("/menu")
 
     elif query.data == "back_to_menu":
+        query.message.reply_text("/menu")
         menu(update, context)
+
+    elif query.data == "manage_equipment":
+        query.message.reply_text("/manage_equipment")
+        manage_equipment(update, context)
+        
+    elif query.data == "my_equipment":
+        query.message.reply_text("/my_equipment")
+        my_equipment(update, context)
+        
+    elif query.data == "time_monitor":
+        query.message.reply_text("/time_monitor")
+        time_monitor(update, context)
+        
+    elif query.data == "my_time_slots":
+        query.message.reply_text("/my_time_slots")
+        my_time_slots(update, context)
+        
+    elif query.data == "unsubscribe":
+        query.message.reply_text("/unsubscribe")
+        unsubscribe(update, context)
 
 def main():
     # Create the Updater and pass it your bot's token

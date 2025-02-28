@@ -2,8 +2,6 @@ import requests
 from flask import Flask, request
 import os
 
-# Bot credentials
-TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
 SUBSCRIBERS_FILE = "subscribers.txt"
 
 # Flask app setup

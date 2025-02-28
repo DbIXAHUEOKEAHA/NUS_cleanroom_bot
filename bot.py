@@ -199,15 +199,16 @@ def button(update, context):
 
     if query.data.startswith("toggle_"):
         idx = int(query.data.split("_")[1])
+        query.message.reply_text(f"{idx}")
         equipment_options = extract_booking_table()
         equipment = equipment_options[idx]
 
         # Handle adding/removing equipment
-        if equipment not in user_settings.get("equipment", []):
-            user_settings.setdefault("equipment", []).append(equipment)
+        if equipment not in subscribers.get(chat_id, {}).get("equipment", []):
+            subscribers[chat_id]["equipment"].append(equipment)
             query.edit_message_text(text=f"✅ {equipment} added to your tracked equipment.")
         else:
-            user_settings["equipment"].remove(equipment)
+            subscribers[chat_id]["equipment"].remove(equipment)
             query.edit_message_text(text=f"❌ {equipment} removed from your tracked equipment.")
 
         save_subscribers(subscribers)
@@ -217,7 +218,7 @@ def button(update, context):
         end_slot = start_slot + 7 # 2-hour block (8 slots per block)
 
         # Mark the selected time range for batch update later
-        selected_time_slots = user_settings.setdefault("time_slots", [])
+        selected_time_slots = subscribers.get(chat_id, {}).get("equipment", [])
         if start_slot not in selected_time_slots:
             selected_time_slots.append(start_slot)
             query.edit_message_text(text=f"Time slot {start_slot * TIME_SLOT_DURATION % 24} - "
@@ -228,6 +229,7 @@ def button(update, context):
                                         f"{end_slot * TIME_SLOT_DURATION % 24} removed from selection.")
 
         save_subscribers(subscribers)
+        subscribers[chat_id]["time_slots"] = selected_time_slots
 
     elif query.data == "menu":
         query.message.reply_text("/menu")

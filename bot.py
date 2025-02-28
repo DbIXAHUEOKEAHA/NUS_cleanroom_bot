@@ -48,7 +48,7 @@ def extract_booking_table():
         for row in rows:
             cols = row.find_all(["th", "td"])
             if cols:
-                equipment = cols[0][1].text.strip()  # First column is the equipment name
+                equipment = cols[0].text.strip()  # First column is the equipment name
                 if equipment:
                     equipment = equipment.split(" ")[1:]  # Remove the first element (day)
                     equipment = " ".join(equipment).replace("(Rules)", "").strip()  # Remove "(Rules)"
@@ -124,7 +124,7 @@ def manage_equipment(update, context):
         keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
 
     keyboard.append([InlineKeyboardButton("❌ Unsubscribe", callback_data="unsubscribe")])
-    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="menu")])  # Add a back button
+    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")])  # Add a back button
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text("Here are the equipment options. Click to manage:", reply_markup=reply_markup)
@@ -156,33 +156,10 @@ def time_monitor(update, context):
         time_slot_range = [InlineKeyboardButton(f"Slot {time_range}", callback_data=f"time_range_{idx}")]
         keyboard.append(time_slot_range)
     
-    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="menu")])  # Back to menu button
+    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")])  # Back to menu button
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text("Select time slots to manage:", reply_markup=reply_markup)
-
-# Batch Time Slot Management (confirm & update)
-def confirm_time_slots(update, context):
-    chat_id = str(update.message.chat.id)
-    subscribers = load_subscribers()
-    user_settings = subscribers.get(chat_id, {})
-    selected_slots = user_settings.get("selected_time_slots", [])
-
-    if not selected_slots:
-        update.message.reply_text("❌ No time slots selected. Use /time_monitor to select.")
-        return
-
-    # Confirm and update time slots
-    user_settings["time_slots"] = selected_slots
-    del user_settings["selected_time_slots"]
-    save_subscribers(subscribers)
-
-    time_slot_ranges = [
-        f"{(start_slot * TIME_SLOT_DURATION) % 24} {'AM' if (start_slot * TIME_SLOT_DURATION) < 12 else 'PM'} - "
-        f"{((start_slot + 3) * TIME_SLOT_DURATION) % 24} {'AM' if ((start_slot + 3) * TIME_SLOT_DURATION) < 12 else 'PM'}"
-        for start_slot in selected_slots
-    ]
-    update.message.reply_text(f"✅ Time slots updated: {', '.join(time_slot_ranges)}")
 
 # Callback for Handling Inline Button Clicks
 def button(update, context):
@@ -225,6 +202,9 @@ def button(update, context):
         save_subscribers(subscribers)
 
     elif query.data == "menu":
+        query.message.reply_text("/menu")
+
+    elif query.data == "back_to_menu":
         menu(update, context)
 
 def main():

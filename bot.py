@@ -51,7 +51,7 @@ def extract_booking_table():
             if cols:
                 equipment = cols[0].text.strip()  # First column is the equipment name
                 if equipment:
-                    equipment = equipment.split(" ")[1:]  # Remove the first element (day)
+                    equipment = equipment.split(" ")[2:]  # Remove the first element (day)
                     equipment = " ".join(equipment).replace("(Rules)", "").strip()  # Remove "(Rules)"
                     equipment_options.append(equipment)
 
@@ -125,6 +125,7 @@ def manage_equipment(update, context):
         keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
 
     keyboard.append([InlineKeyboardButton("❌ Unsubscribe", callback_data="unsubscribe")])
+    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="menu")])  # Add a back button
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text("Here are the equipment options. Click to manage:", reply_markup=reply_markup)
@@ -156,7 +157,7 @@ def time_monitor(update, context):
         time_slot_range = [InlineKeyboardButton(f"Slot {time_range}", callback_data=f"time_range_{idx}")]
         keyboard.append(time_slot_range)
     
-    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="menu")])
+    keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="menu")])  # Back to menu button
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text("Select time slots to manage:", reply_markup=reply_markup)
@@ -177,7 +178,12 @@ def confirm_time_slots(update, context):
     del user_settings["selected_time_slots"]
     save_subscribers(subscribers)
 
-    update.message.reply_text(f"✅ Time slots updated: {', '.join(map(str, selected_slots))}")
+    time_slot_ranges = [
+        f"{(start_slot * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if start_slot < 12 else 'PM'} - "
+        f"{((start_slot + 11) * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if (start_slot + 11) < 12 else 'PM'}"
+        for start_slot in selected_slots
+    ]
+    update.message.reply_text(f"✅ Time slots updated: {', '.join(time_slot_ranges)}")
 
 # Callback for Handling Inline Button Clicks
 def button(update, context):
@@ -211,62 +217,24 @@ def button(update, context):
         selected_time_slots = user_settings.setdefault("selected_time_slots", [])
         if start_slot not in selected_time_slots:
             selected_time_slots.append(start_slot)
-            query.edit_message_text(text=f"Time slots {start_slot}-{end_slot} added to your selected list.")
+            time_range = f"{(start_slot * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if start_slot < 12 else 'PM'} - " \
+                         f"{((start_slot + 11) * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if (start_slot + 11) < 12 else 'PM'}"
+            query.edit_message_text(text=f"Time slot {time_range} added to selection.")
         else:
             selected_time_slots.remove(start_slot)
-            query.edit_message_text(text=f"Time slots {start_slot}-{end_slot} removed from your selected list.")
+            query.edit_message_text(text=f"Time slot removed.")
 
         save_subscribers(subscribers)
 
     elif query.data == "menu":
         menu(update, context)
 
-    elif query.data == "confirm_time_slots":
-        confirm_time_slots(update, context)
+    elif query.data == "back_to_menu":
+        menu(update, context)
 
-# Monitor Booking Changes
-def monitor_bookings(bot):
-    previous_snapshot = extract_booking_table()
-    if previous_snapshot is None:
-        print("⚠️ Failed to fetch initial booking data. Monitoring stopped.")
-        return
-    print(f"✅ Monitoring started for {datetime.today().strftime('%Y-%m-%d')}.")
-
-    while True:
-        time.sleep(SLEEP_TIME)
-        current_snapshot = extract_booking_table()
-        if current_snapshot is None:
-            continue
-        
-        changes_detected = {}
-        for day in range(len(previous_snapshot)):
-            for slot in range(len(previous_snapshot[day])):
-                prev, curr = previous_snapshot[day][slot], current_snapshot[day][slot]
-                if prev and not curr:
-                    changes_detected.setdefault(slot + 1, []).append(f"🔴 Cancellation: {prev} removed on Day {day + 1}")
-                elif not prev and curr:
-                    changes_detected.setdefault(slot + 1, []).append(f"🟢 New Booking: {curr} added on Day {day + 1}")
-        
-        subscribers = load_subscribers()
-        for chat_id, data in subscribers.items():
-            user_equipment = data["equipment"]
-            active_time_slots = data["time_slots"]  # Track only active slots for notifications
-            message = ""
-
-            for e in user_equipment:
-                for slot in active_time_slots:
-                    changes = changes_detected.get(slot, [])
-                    if changes:
-                        message += "\n".join(changes)
-
-            if message:
-                bot.send_message(chat_id=chat_id, text=message.strip())
-        
-        previous_snapshot = current_snapshot
-
-# Main Function to Start Bot
 def main():
-    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+    # Create the Updater and pass it your bot's token
+    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
     # Add Handlers
@@ -277,15 +245,10 @@ def main():
     dispatcher.add_handler(CommandHandler("manage_equipment", manage_equipment))
     dispatcher.add_handler(CommandHandler("unsubscribe", unsubscribe))
     dispatcher.add_handler(CommandHandler("time_monitor", time_monitor))
-
     dispatcher.add_handler(CallbackQueryHandler(button))
 
     # Start the Bot
     updater.start_polling()
-
-    # Start the Monitoring Thread
-    bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
-    threading.Thread(target=monitor_bookings, args=(bot,)).start()
 
 if __name__ == "__main__":
     main()

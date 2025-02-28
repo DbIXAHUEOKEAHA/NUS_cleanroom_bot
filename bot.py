@@ -9,7 +9,7 @@ import time
 import threading
 
 # Telegram Bot Token
-TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
+TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
 
 # File to Store Subscribers
 SUBSCRIBERS_FILE = "subscribers.json"
@@ -34,6 +34,7 @@ def extract_booking_table():
     url = f"https://www.mnff.com.sg/index.php/booking/calendar/{datetime.today().strftime('%Y-%m-%d')}/1"
     response = requests.get(url)
     if response.status_code != 200:
+        print("Error: Failed to fetch booking table.")
         return None
     soup = BeautifulSoup(response.text, "html.parser")
     tables = soup.find_all("table")
@@ -69,6 +70,10 @@ def my_equipment(update, context):
     user_equipment = subscribers.get(chat_id, {}).get("equipment", [])
     equipment_options = extract_booking_table()
 
+    if not equipment_options:
+        update.message.reply_text("⚠️ Failed to fetch equipment options.")
+        return
+
     # Create Inline Keyboard Buttons
     keyboard = []
     if equipment_options:
@@ -88,7 +93,7 @@ def unsubscribe(update, context):
     subscribers = load_subscribers()
     subscribers.pop(chat_id, None)
     save_subscribers(subscribers)
-    update.message.reply_text("❌ You have unsubscribed.")
+    update.message.reply_text("❌ You have unsubscribed from the booking updates.")
 
 # Callback for Handling Inline Button Clicks
 def button(update, context):
@@ -98,7 +103,7 @@ def button(update, context):
     chat_id = str(query.message.chat.id)
     subscribers = load_subscribers()
     equipment_options = extract_booking_table()
-    
+
     # Handle 'toggle' action for adding/removing equipment
     if query.data.startswith("toggle_"):
         idx = int(query.data.split("_")[1])
@@ -170,3 +175,14 @@ def main():
 
     # Register Callback Handler for Inline Buttons
     dp.add_handler(CallbackQueryHandler(button))
+
+    # Start Monitoring in a Separate Thread
+    threading.Thread(target=monitor_bookings, daemon=True, args=(updater.bot,)).start()
+
+    # Start Polling
+    updater.start_polling()
+    updater.idle()
+
+# Run the Bot
+if __name__ == "__main__":
+    main()

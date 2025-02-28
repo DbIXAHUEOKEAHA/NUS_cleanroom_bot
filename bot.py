@@ -1,7 +1,8 @@
 import json
 import requests
 import telegram
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from bs4 import BeautifulSoup
 from datetime import datetime
 import time
@@ -28,7 +29,7 @@ def save_subscribers(subscribers):
     with open(SUBSCRIBERS_FILE, "w") as file:
         json.dump(subscribers, file, indent=4)
 
-# Extract Booking Data
+# Extract Booking Data (get first column as equipment options)
 def extract_booking_table():
     url = f"https://www.mnff.com.sg/index.php/booking/calendar/{datetime.today().strftime('%Y-%m-%d')}/1"
     response = requests.get(url)
@@ -36,11 +37,20 @@ def extract_booking_table():
         return None
     soup = BeautifulSoup(response.text, "html.parser")
     tables = soup.find_all("table")
-    return [[col.text.strip() for col in row.find_all(["th", "td"])] for table in tables for row in table.find_all("tr")[:15]]
+    equipment_options = []
+    for table in tables:
+        rows = table.find_all("tr")
+        for row in rows:
+            cols = row.find_all(["th", "td"])
+            if cols:
+                equipment = cols[0].text.strip()  # First column is the equipment name
+                if equipment:
+                    equipment_options.append(equipment)
+    return equipment_options
 
 # Command: Start
 def start(update, context):
-    update.message.reply_text("Welcome! Use /subscribe to get booking updates.")
+    update.message.reply_text("Welcome! Use /subscribe to get booking updates. Send /my_equipment to manage your equipment.")
 
 # Command: Subscribe
 def subscribe(update, context):
@@ -48,20 +58,29 @@ def subscribe(update, context):
     subscribers = load_subscribers()
     subscribers[chat_id] = {"equipment": []}
     save_subscribers(subscribers)
-    update.message.reply_text("Send /set_equipment followed by numbers (e.g., /set_equipment 3 5 9) to track equipment.")
+    update.message.reply_text("Send /my_equipment to manage your equipment.")
 
-# Command: Set Equipment
-def set_equipment(update, context):
+# Command: My Equipment
+def my_equipment(update, context):
     chat_id = str(update.message.chat_id)
-    numbers = [int(n) for n in context.args if n.isdigit() and 1 <= int(n) <= 15]
+    subscribers = load_subscribers()
     
-    if numbers:
-        subscribers = load_subscribers()
-        subscribers[chat_id] = {"equipment": numbers}
-        save_subscribers(subscribers)
-        update.message.reply_text(f"✅ Tracking equipment: {', '.join(map(str, numbers))}")
-    else:
-        update.message.reply_text("⚠️ Invalid input. Use /set_equipment 1 2 3 (numbers between 1-15).")
+    # Get user's tracked equipment
+    user_equipment = subscribers.get(chat_id, {}).get("equipment", [])
+    equipment_options = extract_booking_table()
+
+    # Create Inline Keyboard Buttons
+    keyboard = []
+    if equipment_options:
+        for idx, equipment in enumerate(equipment_options):
+            button_text = f"🔘 {equipment}" if equipment in user_equipment else f"➕ {equipment}"
+            callback_data = f"toggle_{idx}"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+
+    keyboard.append([InlineKeyboardButton("❌ Unsubscribe", callback_data="unsubscribe")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    update.message.reply_text("Here are the equipment options. Click to manage:", reply_markup=reply_markup)
 
 # Command: Unsubscribe
 def unsubscribe(update, context):
@@ -71,8 +90,42 @@ def unsubscribe(update, context):
     save_subscribers(subscribers)
     update.message.reply_text("❌ You have unsubscribed.")
 
+# Callback for Handling Inline Button Clicks
+def button(update, context):
+    query = update.callback_query
+    query.answer()
+
+    chat_id = str(query.message.chat.id)
+    subscribers = load_subscribers()
+    equipment_options = extract_booking_table()
+    
+    # Handle 'toggle' action for adding/removing equipment
+    if query.data.startswith("toggle_"):
+        idx = int(query.data.split("_")[1])
+        equipment = equipment_options[idx]
+
+        if equipment not in subscribers.get(chat_id, {}).get("equipment", []):
+            # Add to tracked equipment
+            subscribers[chat_id]["equipment"].append(equipment)
+            query.edit_message_text(text=f"✅ {equipment} added to your tracked equipment.")
+        else:
+            # Remove from tracked equipment
+            subscribers[chat_id]["equipment"].remove(equipment)
+            query.edit_message_text(text=f"❌ {equipment} removed from your tracked equipment.")
+        
+        save_subscribers(subscribers)
+    
+    # Handle unsubscribe
+    elif query.data == "unsubscribe":
+        subscribers.pop(chat_id, None)
+        save_subscribers(subscribers)
+        query.edit_message_text(text="❌ You have unsubscribed from the booking updates.")
+
+    # Update the 'My Equipment' view
+    my_equipment(update, context)
+
 # Monitor Booking Changes
-def monitor_bookings():
+def monitor_bookings(bot):
     previous_snapshot = extract_booking_table()
     if previous_snapshot is None:
         print("⚠️ Failed to fetch initial booking data. Monitoring stopped.")
@@ -100,7 +153,7 @@ def monitor_bookings():
                 user_equipment = data["equipment"]
                 message = "\n".join("\n".join(changes_detected.get(e, [])) for e in user_equipment)
                 if message:
-                    context.bot.send_message(chat_id=chat_id, text=message.strip())
+                    bot.send_message(chat_id=chat_id, text=message.strip())
         
         previous_snapshot = current_snapshot
 
@@ -112,16 +165,8 @@ def main():
     # Register Command Handlers
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("subscribe", subscribe))
-    dp.add_handler(CommandHandler("set_equipment", set_equipment, pass_args=True))
+    dp.add_handler(CommandHandler("my_equipment", my_equipment))
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
-    # Start Monitoring Thread
-    threading.Thread(target=monitor_bookings, daemon=True).start()
-
-    # Start Polling
-    updater.start_polling()
-    updater.idle()
-
-# Run the Bot
-if __name__ == "__main__":
-    main()
+    # Register Callback Handler for Inline Buttons
+    dp.add_handler(CallbackQueryHandler(button))

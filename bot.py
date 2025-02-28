@@ -206,7 +206,23 @@ def button(update, context):
 
     elif query.data == "back_to_menu":
         menu(update, context)
-
+        
+    elif query.data == "manage_equipment":
+        manage_equipment(update, context)
+    
+    elif query.data == "my_equipment":
+        my_equipment(update, context)
+        
+    elif query.data == "time_monitor":
+        time_monitor(update, context)
+        
+    elif query.data == "unsubscribe":
+        unsubscribe(update, context)
+    
+    else: 
+        update.message.reply_text(f"Invalid query.data passed: {query.data}")
+        
+    
 def main():
     # Create the Updater and pass it your bot's token
     updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)

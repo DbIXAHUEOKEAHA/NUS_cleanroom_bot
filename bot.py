@@ -4,7 +4,7 @@ import telegram
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import threading
 
@@ -16,6 +16,9 @@ SUBSCRIBERS_FILE = "subscribers.json"
 
 # Interval for Checking Booking Updates
 SLEEP_TIME = 30
+
+# Time slot duration (15 mins)
+TIME_SLOT_DURATION = 15
 
 # Load & Save Subscribers
 def load_subscribers():
@@ -144,13 +147,37 @@ def time_monitor(update, context):
     # Create Inline Buttons for time slots (Active or Inactive)
     keyboard = []
     for idx in range(0, 96, 12):  # Group slots in 12 for easier navigation
-        time_slot_range = [InlineKeyboardButton(f"Slot {idx}-{idx+11}", callback_data=f"time_range_{idx}")]
+        start_time = (idx * TIME_SLOT_DURATION) // 60
+        end_time = ((idx + 11) * TIME_SLOT_DURATION) // 60
+        start_label = f"{start_time % 12 or 12} {'AM' if start_time < 12 else 'PM'}"
+        end_label = f"{end_time % 12 or 12} {'AM' if end_time < 12 else 'PM'}"
+        time_range = f"{start_label} - {end_label}"
+
+        time_slot_range = [InlineKeyboardButton(f"Slot {time_range}", callback_data=f"time_range_{idx}")]
         keyboard.append(time_slot_range)
     
     keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text("Select time slots to manage:", reply_markup=reply_markup)
+
+# Batch Time Slot Management (confirm & update)
+def confirm_time_slots(update, context):
+    chat_id = str(update.message.chat.id)
+    subscribers = load_subscribers()
+    user_settings = subscribers.get(chat_id, {})
+    selected_slots = user_settings.get("selected_time_slots", [])
+
+    if not selected_slots:
+        update.message.reply_text("❌ No time slots selected. Use /time_monitor to select.")
+        return
+
+    # Confirm and update time slots
+    user_settings["time_slots"] = selected_slots
+    del user_settings["selected_time_slots"]
+    save_subscribers(subscribers)
+
+    update.message.reply_text(f"✅ Time slots updated: {', '.join(map(str, selected_slots))}")
 
 # Callback for Handling Inline Button Clicks
 def button(update, context):
@@ -180,19 +207,22 @@ def button(update, context):
         start_slot = int(query.data.split("_")[2])
         end_slot = start_slot + 11
 
-        # Toggle active time slots (add or remove from the list)
-        active_time_slots = user_settings.setdefault("time_slots", list(range(96)))
-        if start_slot in active_time_slots:
-            active_time_slots.remove(start_slot)
-            query.edit_message_text(text=f"Time slots {start_slot}-{end_slot} deactivated.")
+        # Mark the selected time range for batch update later
+        selected_time_slots = user_settings.setdefault("selected_time_slots", [])
+        if start_slot not in selected_time_slots:
+            selected_time_slots.append(start_slot)
+            query.edit_message_text(text=f"Time slots {start_slot}-{end_slot} added to your selected list.")
         else:
-            active_time_slots.append(start_slot)
-            query.edit_message_text(text=f"Time slots {start_slot}-{end_slot} activated.")
+            selected_time_slots.remove(start_slot)
+            query.edit_message_text(text=f"Time slots {start_slot}-{end_slot} removed from your selected list.")
 
         save_subscribers(subscribers)
 
     elif query.data == "menu":
         menu(update, context)
+
+    elif query.data == "confirm_time_slots":
+        confirm_time_slots(update, context)
 
 # Monitor Booking Changes
 def monitor_bookings(bot):
@@ -237,27 +267,25 @@ def monitor_bookings(bot):
 # Main Function to Start Bot
 def main():
     updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    dispatcher = updater.dispatcher
 
-    # Register Command Handlers
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("menu", menu))
-    dp.add_handler(CommandHandler("subscribe", subscribe))
-    dp.add_handler(CommandHandler("my_equipment", my_equipment))
-    dp.add_handler(CommandHandler("manage_equipment", manage_equipment))
-    dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
-    dp.add_handler(CommandHandler("time_monitor", time_monitor))
+    # Add Handlers
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("menu", menu))
+    dispatcher.add_handler(CommandHandler("subscribe", subscribe))
+    dispatcher.add_handler(CommandHandler("my_equipment", my_equipment))
+    dispatcher.add_handler(CommandHandler("manage_equipment", manage_equipment))
+    dispatcher.add_handler(CommandHandler("unsubscribe", unsubscribe))
+    dispatcher.add_handler(CommandHandler("time_monitor", time_monitor))
 
-    # Register Callback Handler for Inline Buttons
-    dp.add_handler(CallbackQueryHandler(button))
+    dispatcher.add_handler(CallbackQueryHandler(button))
 
-    # Start Monitoring in a Separate Thread
-    threading.Thread(target=monitor_bookings, daemon=True, args=(updater.bot,)).start()
-
-    # Start Polling
+    # Start the Bot
     updater.start_polling()
-    updater.idle()
 
-# Run the Bot
+    # Start the Monitoring Thread
+    bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
+    threading.Thread(target=monitor_bookings, args=(bot,)).start()
+
 if __name__ == "__main__":
     main()

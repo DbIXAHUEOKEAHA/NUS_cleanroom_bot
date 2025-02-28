@@ -6,7 +6,6 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import time
-import threading
 
 # Telegram Bot Token
 TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
@@ -17,8 +16,8 @@ SUBSCRIBERS_FILE = "subscribers.json"
 # Interval for Checking Booking Updates
 SLEEP_TIME = 30
 
-# Time slot duration (15 mins)
-TIME_SLOT_DURATION = 15
+# Time slot duration (2 hours instead of 1)
+TIME_SLOT_DURATION = 2  # In hours
 
 # Load & Save Subscribers
 def load_subscribers():
@@ -49,9 +48,9 @@ def extract_booking_table():
         for row in rows:
             cols = row.find_all(["th", "td"])
             if cols:
-                equipment = cols[0].text.strip()  # First column is the equipment name
+                equipment = cols[0][1].text.strip()  # First column is the equipment name
                 if equipment:
-                    equipment = equipment.split(" ")[2:]  # Remove the first element (day)
+                    equipment = equipment.split(" ")[1:]  # Remove the first element (day)
                     equipment = " ".join(equipment).replace("(Rules)", "").strip()  # Remove "(Rules)"
                     equipment_options.append(equipment)
 
@@ -147,9 +146,9 @@ def time_monitor(update, context):
 
     # Create Inline Buttons for time slots (Active or Inactive)
     keyboard = []
-    for idx in range(0, 96, 12):  # Group slots in 12 for easier navigation
-        start_time = (idx * TIME_SLOT_DURATION) // 60
-        end_time = ((idx + 11) * TIME_SLOT_DURATION) // 60
+    for idx in range(0, 96, 4):  # Group slots by 2 hours (4 slots per time block)
+        start_time = (idx * TIME_SLOT_DURATION) % 24
+        end_time = ((idx + 3) * TIME_SLOT_DURATION) % 24
         start_label = f"{start_time % 12 or 12} {'AM' if start_time < 12 else 'PM'}"
         end_label = f"{end_time % 12 or 12} {'AM' if end_time < 12 else 'PM'}"
         time_range = f"{start_label} - {end_label}"
@@ -179,8 +178,8 @@ def confirm_time_slots(update, context):
     save_subscribers(subscribers)
 
     time_slot_ranges = [
-        f"{(start_slot * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if start_slot < 12 else 'PM'} - "
-        f"{((start_slot + 11) * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if (start_slot + 11) < 12 else 'PM'}"
+        f"{(start_slot * TIME_SLOT_DURATION) % 24} {'AM' if (start_slot * TIME_SLOT_DURATION) < 12 else 'PM'} - "
+        f"{((start_slot + 3) * TIME_SLOT_DURATION) % 24} {'AM' if ((start_slot + 3) * TIME_SLOT_DURATION) < 12 else 'PM'}"
         for start_slot in selected_slots
     ]
     update.message.reply_text(f"✅ Time slots updated: {', '.join(time_slot_ranges)}")
@@ -211,15 +210,14 @@ def button(update, context):
 
     elif query.data.startswith("time_range_"):
         start_slot = int(query.data.split("_")[2])
-        end_slot = start_slot + 11
+        end_slot = start_slot + 3  # 2-hour block (4 slots per block)
 
         # Mark the selected time range for batch update later
         selected_time_slots = user_settings.setdefault("selected_time_slots", [])
         if start_slot not in selected_time_slots:
             selected_time_slots.append(start_slot)
-            time_range = f"{(start_slot * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if start_slot < 12 else 'PM'} - " \
-                         f"{((start_slot + 11) * TIME_SLOT_DURATION) // 60 % 12 or 12} {'AM' if (start_slot + 11) < 12 else 'PM'}"
-            query.edit_message_text(text=f"Time slot {time_range} added to selection.")
+            query.edit_message_text(text=f"Time slot {start_slot * TIME_SLOT_DURATION % 24} - "
+                                        f"{end_slot * TIME_SLOT_DURATION % 24} added to selection.")
         else:
             selected_time_slots.remove(start_slot)
             query.edit_message_text(text=f"Time slot removed.")
@@ -227,9 +225,6 @@ def button(update, context):
         save_subscribers(subscribers)
 
     elif query.data == "menu":
-        menu(update, context)
-
-    elif query.data == "back_to_menu":
         menu(update, context)
 
 def main():

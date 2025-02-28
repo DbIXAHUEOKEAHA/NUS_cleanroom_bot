@@ -9,7 +9,7 @@ import time
 import threading
 
 # Telegram Bot Token
-TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
+TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
 
 # File to Store Subscribers
 SUBSCRIBERS_FILE = "subscribers.json"
@@ -174,7 +174,7 @@ def main():
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
     # Register Callback Handler for Inline Buttons
-    dp.add_handler(CallbackQueryHandler(button))
+    #dp.add_handler(CallbackQueryHandler(button))
 
     # Start Monitoring in a Separate Thread
     threading.Thread(target=monitor_bookings, daemon=True, args=(updater.bot,)).start()

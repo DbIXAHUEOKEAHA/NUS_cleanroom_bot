@@ -65,6 +65,7 @@ def menu(update, context):
     keyboard = [
         [InlineKeyboardButton("Manage Equipment", callback_data="manage_equipment"),
          InlineKeyboardButton("My Equipment", callback_data="my_equipment")],
+        [InlineKeyboardButton("My Time Slots", callback_data="my_time_slots")],
         [InlineKeyboardButton("Time Monitor", callback_data="time_monitor")],
         [InlineKeyboardButton("Unsubscribe", callback_data="unsubscribe")]
     ]
@@ -137,6 +138,32 @@ def unsubscribe(update, context):
     save_subscribers(subscribers)
     update.message.reply_text("❌ You have unsubscribed from the booking updates.")
 
+# Command: My Time Slots
+def my_time_slots(update, context):
+    chat_id = str(update.message.chat.id)
+    subscribers = load_subscribers()
+    user_settings = subscribers.get(chat_id, {})
+    time_slots = user_settings.get("time_slots", list(range(96)))  # Default is all slots
+
+    # Show only active time slots
+    active_time_slots = []
+    for idx in range(0, 96, 8):  # Group slots by 2 hours (4 slots per time block)
+        start_time = (idx * TIME_SLOT_DURATION) % 24
+        end_time = ((idx + 8) * TIME_SLOT_DURATION) % 24
+        start_label = f"{start_time % 12 or 12} {'AM' if start_time < 12 else 'PM'}"
+        end_label = f"{end_time % 12 or 12} {'AM' if end_time < 12 else 'PM'}"
+        time_range = f"{start_label} - {end_label}"
+
+        # If this time slot is monitored by the user
+        if idx in user_settings.get("time_slots", []):
+            active_time_slots.append(time_range)
+
+    if active_time_slots:
+        time_slot_list = "\n".join(active_time_slots)
+        update.message.reply_text(f"📅 Monitored Time Slots:\n{time_slot_list}")
+    else:
+        update.message.reply_text("❌ You are not monitoring any time slots. Use /time_monitor to set them.")
+
 # Command: Time Monitor
 def time_monitor(update, context):
     chat_id = str(update.message.chat.id)
@@ -148,9 +175,9 @@ def time_monitor(update, context):
     keyboard = []
     for idx in range(0, 96, 8):  # Group slots by 2 hours (8 slots per time block)
         start_time = (idx * TIME_SLOT_DURATION)
-        end_time = ((idx + 7) * TIME_SLOT_DURATION)
-        start_label = f"{start_time % 12} {'AM' if start_time < 12 else 'PM'}"
-        end_label = f"{end_time % 12} {'AM' if end_time < 12 else 'PM'}"
+        end_time = ((idx + 8) * TIME_SLOT_DURATION)
+        start_label = f"{start_time % 12 or 12} {'AM' if start_time < 12 else 'PM'}"
+        end_label = f"{end_time % 12 or 12} {'AM' if end_time < 12 else 'PM'}"
         time_range = f"{start_label} - {end_label}"
 
         time_slot_range = [InlineKeyboardButton(f"Slot {time_range}", callback_data=f"time_range_{idx}")]
@@ -187,17 +214,18 @@ def button(update, context):
 
     elif query.data.startswith("time_range_"):
         start_slot = int(query.data.split("_")[2])
-        end_slot = start_slot + 3  # 2-hour block (4 slots per block)
+        end_slot = start_slot + 7 # 2-hour block (8 slots per block)
 
         # Mark the selected time range for batch update later
-        selected_time_slots = user_settings.setdefault("selected_time_slots", [])
+        selected_time_slots = user_settings.setdefault("time_slots", [])
         if start_slot not in selected_time_slots:
             selected_time_slots.append(start_slot)
             query.edit_message_text(text=f"Time slot {start_slot * TIME_SLOT_DURATION % 24} - "
                                         f"{end_slot * TIME_SLOT_DURATION % 24} added to selection.")
         else:
             selected_time_slots.remove(start_slot)
-            query.edit_message_text(text="Time slot removed.")
+            query.edit_message_text(text=f"Time slot {start_slot * TIME_SLOT_DURATION % 24} - "
+                                        f"{end_slot * TIME_SLOT_DURATION % 24} removed from selection.")
 
         save_subscribers(subscribers)
 
@@ -205,24 +233,8 @@ def button(update, context):
         query.message.reply_text("/menu")
 
     elif query.data == "back_to_menu":
-        query.message.reply_text("/menu")
-        
-    elif query.data == "manage_equipment":
-        query.message.reply_text("/manage_equipment")
-    
-    elif query.data == "my_equipment":
-        query.message.reply_text("/my_equipment")
-        
-    elif query.data == "time_monitor":
-        query.message.reply_text("/time_monitor")
-        
-    elif query.data == "unsubscribe":
-        query.message.reply_text("/unsubscribe")
-    
-    else: 
-        update.message.reply_text(f"Invalid query.data passed: {query.data}")
-        
-    
+        menu(update, context)
+
 def main():
     # Create the Updater and pass it your bot's token
     updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
@@ -235,7 +247,7 @@ def main():
     dispatcher.add_handler(CommandHandler("my_equipment", my_equipment))
     dispatcher.add_handler(CommandHandler("manage_equipment", manage_equipment))
     dispatcher.add_handler(CommandHandler("unsubscribe", unsubscribe))
-    dispatcher.add_handler(CommandHandler("time_monitor", time_monitor))
+    dispatcher.add_handler(CommandHandler("my_time_slots", my_time_slots))
     dispatcher.add_handler(CallbackQueryHandler(button))
 
     # Start the Bot

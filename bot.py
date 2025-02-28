@@ -17,7 +17,7 @@ SUBSCRIBERS_FILE = "subscribers.json"
 SLEEP_TIME = 30
 
 # Time slot duration (2 hours instead of 1)
-TIME_SLOT_DURATION = 2  # In hours
+TIME_SLOT_DURATION = 0.25  # In hours
 
 # Load & Save Subscribers
 def load_subscribers():
@@ -146,11 +146,11 @@ def time_monitor(update, context):
 
     # Create Inline Buttons for time slots (Active or Inactive)
     keyboard = []
-    for idx in range(0, 96, 4):  # Group slots by 2 hours (4 slots per time block)
-        start_time = (idx * TIME_SLOT_DURATION) % 24
-        end_time = ((idx + 3) * TIME_SLOT_DURATION) % 24
-        start_label = f"{start_time % 12 or 12} {'AM' if start_time < 12 else 'PM'}"
-        end_label = f"{end_time % 12 or 12} {'AM' if end_time < 12 else 'PM'}"
+    for idx in range(0, 96, 8):  # Group slots by 2 hours (8 slots per time block)
+        start_time = (idx * TIME_SLOT_DURATION)
+        end_time = ((idx + 7) * TIME_SLOT_DURATION)
+        start_label = f"{start_time % 12} {'AM' if start_time < 12 else 'PM'}"
+        end_label = f"{end_time % 12} {'AM' if end_time < 12 else 'PM'}"
         time_range = f"{start_label} - {end_label}"
 
         time_slot_range = [InlineKeyboardButton(f"Slot {time_range}", callback_data=f"time_range_{idx}")]
@@ -197,7 +197,7 @@ def button(update, context):
                                         f"{end_slot * TIME_SLOT_DURATION % 24} added to selection.")
         else:
             selected_time_slots.remove(start_slot)
-            query.edit_message_text(text=f"Time slot removed.")
+            query.edit_message_text(text="Time slot removed.")
 
         save_subscribers(subscribers)
 
@@ -205,19 +205,19 @@ def button(update, context):
         query.message.reply_text("/menu")
 
     elif query.data == "back_to_menu":
-        menu(update, context)
+        query.message.reply_text("/menu")
         
     elif query.data == "manage_equipment":
-        manage_equipment(update, context)
+        query.message.reply_text("/manage_equipment")
     
     elif query.data == "my_equipment":
-        my_equipment(update, context)
+        query.message.reply_text("/my_equipment")
         
     elif query.data == "time_monitor":
-        time_monitor(update, context)
+        query.message.reply_text("/time_monitor")
         
     elif query.data == "unsubscribe":
-        unsubscribe(update, context)
+        query.message.reply_text("/unsubscribe")
     
     else: 
         update.message.reply_text(f"Invalid query.data passed: {query.data}")

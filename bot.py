@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 # Telegram Bot Credentials
 TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
-WEBHOOK_URL = "nuscleanroombot-production.up.railway.app"  # Replace with Railway public URL
+WEBHOOK_URL = "https://nuscleanroombot-production.up.railway.app"  # Replace with Railway public URL
 SUBSCRIBERS_FILE = "subscribers.json"
 SLEEP_TIME = 30  # Check interval in seconds
 

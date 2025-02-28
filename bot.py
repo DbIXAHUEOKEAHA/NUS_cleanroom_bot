@@ -9,7 +9,7 @@ import time
 import threading
 
 # Telegram Bot Token
-TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
+TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
 
 # File to Store Subscribers
 SUBSCRIBERS_FILE = "subscribers.json"

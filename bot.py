@@ -416,6 +416,8 @@ def button(update, context):
             query.edit_message_text(text=f"❌ {equipment} removed from your tracked equipment.")
 
         save_subscribers(subscribers)
+        
+        manage_equipment(update, context)
 
     elif query.data.startswith("time_range_"):
         start_slot = int(query.data.split("_")[2])
@@ -438,6 +440,8 @@ def button(update, context):
 
         save_subscribers(subscribers)
         subscribers[chat_id]["time_slots"] = selected_time_slots
+        
+        time_monitor(update, context)
 
     elif query.data == "menu":
         query.message.reply_text("/menu")

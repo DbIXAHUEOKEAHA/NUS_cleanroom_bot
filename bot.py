@@ -166,7 +166,18 @@ def extract_booking_table(equipment, time_slots):
 
     return extracted_rows if extracted_rows else None
 
-def monitor_bookings(context):
+def send_notification(update, message):
+    try:
+        update.effective_message.reply_text(message)
+    except telegram.error.NetworkError as e:
+        print(f"⚠️ Network error while sending message: {e}")
+        time.sleep(5)  # Wait and retry
+        try:
+            update.effective_message.reply_text(message)
+        except Exception as e:
+            print(f"❌ Failed again: {e}")  # Log and prevent a crash
+
+def monitor_bookings(update, context):
     """Monitors the booking table and notifies subscribers of changes."""
     global global_snapshot, monitoring_active
 
@@ -212,7 +223,7 @@ def monitor_bookings(context):
                             changes_detected += True
                             
             if changes_detected:
-                context.bot.send_message(chat_id=chat_id, text=message.strip())
+                send_notification(update, message.strip())
 
             global_snapshot[chat_id] = current_snapshot  # Update snapshot
 
@@ -222,7 +233,7 @@ def start_monitoring(update, context):
 
     if not monitoring_active:
         monitoring_active = True
-        monitoring_thread = threading.Thread(target=monitor_bookings, args=(context,), daemon=True)
+        monitoring_thread = threading.Thread(target=monitor_bookings, args=(update, context), daemon=True)
         monitoring_thread.start()
         update.effective_message.reply_text("✅ Monitoring started!")
 

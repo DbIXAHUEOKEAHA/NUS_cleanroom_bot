@@ -210,9 +210,9 @@ def monitor_bookings(update, context):
             days = len(previous_snapshot) // len(user_equipment)
 
             for day in range(days):
-                for n_equipment in range(len(user_equipment)):
+                for n_equipment, eq in enumerate(user_equipment):
                     for slot in range(len(previous_snapshot[day])):
-                        equipment = previous_snapshot[day + days * n_equipment][0]
+                        equipment = eq
                         prev = previous_snapshot[day + days * n_equipment][slot]
                         curr = current_snapshot[day + days * n_equipment][slot]
 

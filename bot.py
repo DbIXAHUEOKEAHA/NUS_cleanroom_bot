@@ -13,7 +13,7 @@ from psycopg2.extras import Json
 TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
 
 # PostgreSQL Connection String (replace with your Railway.app PostgreSQL URL)
-DATABASE_URL = "postgresql://postgres:pHYRSmUjgTMBRVFMxDZqqjXUozTImYLA@postgres.railway.internal:5432/railway"
+DATABASE_URL = "postgresql://postgres:CiDoZpCyhjqXNAjwvDEBHYvkmPLideSu@postgres-80am.railway.internal:5432/railway"
 
 # Interval for Checking Booking Updates
 SLEEP_TIME = 30

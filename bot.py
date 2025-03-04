@@ -313,7 +313,14 @@ def manage_equipment(update, context):
     keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")])  # Add a back button
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    update.effective_message.reply_text("Here are the equipment options. Click to manage:", reply_markup=reply_markup)
+    # Use "edit_message_text" instead of sending a new message
+    if update.callback_query:
+        update.callback_query.message.edit_text(
+            text="Here are the equipment options. Click to manage:",
+            reply_markup=reply_markup
+        )
+    else:
+        update.effective_message.reply_text("Here are the equipment options. Click to manage:", reply_markup=reply_markup)
 
 # Command: Unsubscribe
 def unsubscribe(update, context):
@@ -349,9 +356,11 @@ def my_time_slots(update, context):
 
     if active_time_slots:
         time_slot_list = "\n".join(active_time_slots)
-        update.effective_message.reply_text(f"📅 Monitored Time Slots:\n{time_slot_list}")
+        message = f"📅 Monitored Time Slots:\n{time_slot_list}"
     else:
-        update.effective_message.reply_text("❌ You are not monitoring any time slots. Use /time_monitor to set them.")
+        message = "❌ You are not monitoring any time slots. Use /time_monitor to set them."
+        
+    update.effective_message.reply_text(message)
 
 # Command: Time Monitor
 def time_monitor(update, context):
@@ -376,9 +385,15 @@ def time_monitor(update, context):
         keyboard.append(time_slot_range)
     
     keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")])  # Back to menu button
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    update.effective_message.reply_text("Select time slots to manage:", reply_markup=reply_markup)
+    
+    # Use "edit_message_text" instead of sending a new message
+    if update.callback_query:
+        update.callback_query.message.edit_text(
+            text="Select time slots to manage:", reply_markup = reply_markup)
+    else:
+        update.effective_message.reply_text(text="Select time slots to manage:", reply_markup = reply_markup)
 
 # Callback for Handling Inline Button Clicks
 def button(update, context):

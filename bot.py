@@ -58,13 +58,18 @@ def load_subscribers():
 def save_subscribers(subscribers):
     conn = get_db_connection()
     cur = conn.cursor()
+    
     for chat_id, data in subscribers.items():
+        equipment = data.get("equipment", [])
+        time_slots = data.get("time_slots", [])
+        
         cur.execute("""
             INSERT INTO subscribers (chat_id, equipment, time_slots)
             VALUES (%s, %s, %s)
-            ON CONFLICT (chat_id) DO UPDATE
+            ON CONFLICT (chat_id) DO UPDATE 
             SET equipment = EXCLUDED.equipment, time_slots = EXCLUDED.time_slots
-        """, (int(chat_id), Json(data["equipment"]), Json(data["time_slots"])))
+        """, (chat_id, equipment if equipment else [], time_slots if time_slots else []))
+    
     conn.commit()
     cur.close()
     conn.close()

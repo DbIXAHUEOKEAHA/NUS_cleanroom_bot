@@ -402,6 +402,9 @@ def button(update, context):
 
     chat_id = str(query.message.chat.id)
     subscribers = load_subscribers()
+    
+    user_equipment = subscribers.get(chat_id, {}).get("equipment", [])
+    selected_time_slots = subscribers.get(chat_id, {}).get("time_slots", [])
 
     if query.data.startswith("toggle_"):
         idx = int(query.data.split("_")[1])
@@ -417,7 +420,25 @@ def button(update, context):
 
         save_subscribers(subscribers)
         
-        manage_equipment(update, context)
+        # Create Inline Keyboard Buttons for available equipment
+        keyboard = []
+        for idx, equipment in enumerate(equipment_options):
+            button_text = f"➖ {equipment}" if equipment in user_equipment else f"➕ {equipment}"
+            callback_data = f"toggle_{idx}"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+
+        keyboard.append([InlineKeyboardButton("❌ Unsubscribe", callback_data="unsubscribe")])
+        keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")])  # Add a back button
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Use "edit_message_text" instead of sending a new message
+        if update.callback_query:
+            update.callback_query.message.edit_text(
+                text="Here are the equipment options. Click to manage:",
+                reply_markup=reply_markup
+            )
+        else:
+            update.effective_message.reply_text("Here are the equipment options. Click to manage:", reply_markup=reply_markup)
 
     elif query.data.startswith("time_range_"):
         start_slot = int(query.data.split("_")[2])
@@ -441,7 +462,27 @@ def button(update, context):
         save_subscribers(subscribers)
         subscribers[chat_id]["time_slots"] = selected_time_slots
         
-        time_monitor(update, context)
+        keyboard = []
+        for idx in range(0, 96, N_TIME_SLOT):  # Group slots by 2 hours (8 slots per time block)
+            start_time = (idx * TIME_SLOT_DURATION)
+            end_time = ((idx + N_TIME_SLOT) * TIME_SLOT_DURATION)
+            start_label = f"{int(start_time % 12) or 12} {'AM' if start_time < 12 else 'PM'}"
+            end_label = f"{int(end_time % 12) or 12} {'AM' if end_time < 12 else 'PM'}"
+            time_range = f"{start_label} - {end_label}"
+
+            time_slot_range = [InlineKeyboardButton(f"{'➖' if idx in selected_time_slots else '➕'} Slot {time_range}", callback_data=f"time_range_{idx}")]
+            keyboard.append(time_slot_range)
+        
+        keyboard.append([InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")])  # Back to menu button
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Use "edit_message_text" instead of sending a new message
+        if update.callback_query:
+            update.callback_query.message.edit_text(
+                text="Select time slots to manage:", reply_markup = reply_markup)
+        else:
+            update.effective_message.reply_text(text="Select time slots to manage:", reply_markup = reply_markup)
 
     elif query.data == "menu":
         query.message.reply_text("/menu")

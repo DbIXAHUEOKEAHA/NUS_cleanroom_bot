@@ -217,13 +217,13 @@ def monitor_bookings(update, context):
                         curr = current_snapshot[day + days * n_equipment][slot]
 
                         if prev and not curr:
-                            slot_label = float_to_time(slot*TIME_SLOT_DURATION)
+                            slot_label = float_to_time(selected_time_slots[slot]*TIME_SLOT_DURATION)
                             
                             message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                             changes_detected += True
                             
                         elif not prev and curr:
-                            slot_label = float_to_time(slot*TIME_SLOT_DURATION)
+                            slot_label = float_to_time(selected_time_slots[slot]*TIME_SLOT_DURATION)
                             
                             message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                             changes_detected = True

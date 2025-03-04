@@ -1,4 +1,3 @@
-import json
 import threading
 import requests
 import telegram
@@ -7,56 +6,103 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import time
-import numpy as np
+import psycopg2
+from psycopg2.extras import Json
 
 # Telegram Bot Token
 TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
 
-# File to Store Subscribers
-SUBSCRIBERS_FILE = "subscribers.json"
+# PostgreSQL Connection String (replace with your Railway.app PostgreSQL URL)
+DATABASE_URL = "postgresql://postgres:pHYRSmUjgTMBRVFMxDZqqjXUozTImYLA@postgres.railway.internal:5432/railway"
 
 # Interval for Checking Booking Updates
 SLEEP_TIME = 30
 
 # Time slot duration (2 hours instead of 1)
 TIME_SLOT_DURATION = 0.25  # In hours
-N_TIME_SLOT = 8 #Number of table cells in one monitored slot
+N_TIME_SLOT = 8  # Number of table cells in one monitored slot
 
 global_snapshot = {}
 monitoring_active = False
 
+# Connect to PostgreSQL
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
 
-# Load & Save Subscribers
+# Initialize Database (create tables if they don't exist)
+def initialize_database():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS subscribers (
+            chat_id BIGINT PRIMARY KEY,
+            equipment TEXT[],
+            time_slots INTEGER[]
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# Load Subscribers from PostgreSQL
 def load_subscribers():
-    try:
-        with open(SUBSCRIBERS_FILE, "r") as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM subscribers")
+    subscribers = {str(row[0]): {"equipment": row[1], "time_slots": row[2]} for row in cur.fetchall()}
+    cur.close()
+    conn.close()
+    return subscribers
 
+# Save Subscribers to PostgreSQL
 def save_subscribers(subscribers):
-    with open(SUBSCRIBERS_FILE, "w") as file:
-        json.dump(subscribers, file, indent=4)
-        
+    conn = get_db_connection()
+    cur = conn.cursor()
+    for chat_id, data in subscribers.items():
+        cur.execute("""
+            INSERT INTO subscribers (chat_id, equipment, time_slots)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (chat_id) DO UPDATE
+            SET equipment = EXCLUDED.equipment, time_slots = EXCLUDED.time_slots
+        """, (int(chat_id), Json(data["equipment"]), Json(data["time_slots"])))
+    conn.commit()
+    cur.close()
+    conn.close()
+
 # Function to generate today's booking URL
 def get_today_url():
     today = datetime.today().strftime("%Y-%m-%d")
     return f"https://www.mnff.com.sg/index.php/booking/calendar/{today}/1"
 
 def get_future_date(days_from_today: int) -> str:
-    """Returns the date in 'dd.mm' format for the given number of days from today.
-    
-    Args:
-        days_from_today (int): Number of days from today (1-7).
-        
-    Returns:
-        str: Date in 'dd.mm' format.
-    """
+    """Returns the date in 'dd.mm' format for the given number of days from today."""
     if not (1 <= days_from_today <= 7):
         raise ValueError("days_from_today must be between 1 and 7")
 
     future_date = datetime.today() + timedelta(days=days_from_today)
     return future_date.strftime("%d.%m")
+
+def float_to_time(float_time):
+    # Separate hours and minutes
+    hours = int(float_time)
+    minutes = int((float_time - hours) * 60)
+
+    # Determine AM/PM
+    if hours < 12:
+        period = "AM"
+    else:
+        period = "PM"
+
+    # Convert to 12-hour format
+    if hours == 0:
+        hours_12 = 12
+    else:
+        hours_12 = hours if hours <= 12 else hours - 12
+
+    # Format the time as HH:MM AM/PM
+    time_str = f"{hours_12}:{minutes:02d} {period}"
+    return time_str
+
 
 # Extract Booking Data (get first column as equipment options)
 def extract_equipment_options():
@@ -155,7 +201,7 @@ def monitor_bookings(context):
                         curr = current_snapshot[day + days * n_equipment][slot]
 
                         if prev and not curr:
-                            slot_label = f"{int(slot*TIME_SLOT_DURATION % 12) or 12} {'AM' if slot < 12 else 'PM'}"
+                            slot_label = float_to_time(slot*TIME_SLOT_DURATION)
                             
                             message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                             changes_detected += True
@@ -212,7 +258,7 @@ def subscribe(update, context):
     else:
         update.effective_message.reply_text("You are already subscribed. Use /menu to manage your settings.")
     
-    #start monitoring
+    # Start monitoring
     start_monitoring(update, context)
     
 # Command: My Equipment
@@ -222,6 +268,10 @@ def my_equipment(update, context):
     
     # Get user's tracked equipment
     user_equipment = subscribers.get(chat_id, {}).get("equipment", [])
+
+    if chat_id not in subscribers:
+        update.effective_message.reply_text("❌ You are not subscribed to the bot. Use /subscribe to subscribe.")
+        return
 
     if not user_equipment:
         update.effective_message.reply_text("❌ You are not subscribed to any equipment. Use /manage_equipment to subscribe to updates.")
@@ -238,6 +288,10 @@ def manage_equipment(update, context):
     
     # Get user's tracked equipment
     user_equipment = subscribers.get(chat_id, {}).get("equipment", [])
+
+    if chat_id not in subscribers:
+        update.effective_message.reply_text("❌ You are not subscribed to the bot. Use /subscribe to subscribe.")
+        return
 
     if not equipment_options:
         update.effective_message.reply_text("⚠️ Failed to fetch equipment options.")
@@ -271,6 +325,10 @@ def my_time_slots(update, context):
     subscribers = load_subscribers()
     user_settings = subscribers.get(chat_id, {})
 
+    if chat_id not in subscribers:
+        update.effective_message.reply_text("❌ You are not subscribed to the bot. Use /subscribe to subscribe.")
+        return
+
     # Show only active time slots
     active_time_slots = []
     for idx in range(0, 96, N_TIME_SLOT):  # Group slots by 2 hours (4 slots per time block)
@@ -295,7 +353,11 @@ def time_monitor(update, context):
     chat_id = str(update.effective_chat.id)
     subscribers = load_subscribers()
     selected_time_slots = subscribers.get(chat_id, {}).get("time_slots", [])
-
+    
+    if chat_id not in subscribers:
+        update.effective_message.reply_text("❌ You are not subscribed to the bot. Use /subscribe to subscribe.")
+        return
+    
     # Create Inline Buttons for time slots (Active or Inactive)
     keyboard = []
     for idx in range(0, 96, N_TIME_SLOT):  # Group slots by 2 hours (8 slots per time block)
@@ -327,7 +389,6 @@ def button(update, context):
 
         # Handle adding/removing equipment
         if equipment not in subscribers.get(chat_id, {}).get("equipment", []):
-            
             subscribers[chat_id]["equipment"].append(equipment)
             query.edit_message_text(text=f"✅ {equipment} added to your tracked equipment.")
         else:
@@ -338,9 +399,9 @@ def button(update, context):
 
     elif query.data.startswith("time_range_"):
         start_slot = int(query.data.split("_")[2])
-        end_slot = start_slot + N_TIME_SLOT # 2-hour block (8 slots per block)
-        start_label = f"{int(start_slot*TIME_SLOT_DURATION % 12) or 12} {'AM' if start_slot < 12 else 'PM'}"
-        end_label = f"{int(end_slot*TIME_SLOT_DURATION % 12) or 12} {'AM' if end_slot < 12 else 'PM'}"
+        end_slot = start_slot + N_TIME_SLOT  # 2-hour block (8 slots per block)
+        start_label = f"{int(start_slot*TIME_SLOT_DURATION % 12) or 12} {'AM' if start_slot*TIME_SLOT_DURATION < 12 else 'PM'}"
+        end_label = f"{int(end_slot*TIME_SLOT_DURATION % 12) or 12} {'AM' if end_slot*TIME_SLOT_DURATION < 12 else 'PM'}"
 
         # Mark the selected time range for batch update later
         selected_time_slots = subscribers.get(chat_id, {}).get("time_slots", [])
@@ -362,30 +423,27 @@ def button(update, context):
         query.message.reply_text("/menu")
 
     elif query.data == "back_to_menu":
-        #query.message.reply_text("/menu")
         menu(update, context)
 
     elif query.data == "manage_equipment":
-        #query.message.reply_text("/manage_equipment")
         manage_equipment(update, context)
         
     elif query.data == "my_equipment":
-        #query.message.reply_text("/my_equipment")
         my_equipment(update, context)
         
     elif query.data == "time_monitor":
-        #query.message.reply_text("/time_monitor")
         time_monitor(update, context)
         
     elif query.data == "my_time_slots":
-        #query.message.reply_text("/my_time_slots")
         my_time_slots(update, context)
         
     elif query.data == "unsubscribe":
-        #query.message.reply_text("/unsubscribe")
         unsubscribe(update, context)
 
 def main():
+    # Initialize the database
+    initialize_database()
+
     # Create the Updater and pass it your bot's token
     updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher

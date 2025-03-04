@@ -136,6 +136,9 @@ def extract_equipment_options():
 
 equipment_options = extract_equipment_options()
 
+def flatten(xss):
+    return [x for xs in xss for x in xs]
+
 # Command: Start
 def start(update, context):
     update.effective_message.reply_text("Welcome! Use /menu to access the bot's features.")
@@ -197,40 +200,44 @@ def monitor_bookings(update, context):
                 continue
 
             current_snapshot = extract_booking_table(user_equipment, selected_time_slots)
+            current_snapshot = flatten(current_snapshot)
             if current_snapshot is None:
                 continue
 
-            if chat_id not in global_snapshot:
-                global_snapshot[chat_id] = current_snapshot
-                continue
+            global_snapshot[chat_id] = current_snapshot
 
             previous_snapshot = global_snapshot[chat_id]
+            previous_snapshot = flatten(previous_snapshot)
             message = ""
             changes_detected = False
-            days = len(previous_snapshot) // len(user_equipment)
 
-            for day in range(days):
-                for n_equipment, eq in enumerate(user_equipment):
-                    for slot in range(len(previous_snapshot[day])):
-                        equipment = eq
-                        prev = previous_snapshot[day + days * n_equipment][slot]
-                        curr = current_snapshot[day + days * n_equipment][slot]
+            total_slots = len(previous_snapshot)
 
-                        if prev and not curr:
-                            slot_label = float_to_time(selected_time_slots[slot]*TIME_SLOT_DURATION)
-                            
-                            message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
-                            changes_detected += True
-                            
-                        elif not prev and curr:
-                            slot_label = float_to_time(selected_time_slots[slot]*TIME_SLOT_DURATION)
-                            
-                            message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
-                            changes_detected = True
+            days = int(total_slots / (len(user_equipment) * len(selected_time_slots)))
+        
+            for i in range(total_slots):
+                equipment = user_equipment[int(i // (len(selected_time_slots)*days))]
+                
+                day = int((i % (len(selected_time_slots) * len(user_equipment))) // len(selected_time_slots))
+                
+                prev = previous_snapshot[i]
+                curr = current_snapshot[i]
+                
+                if prev and not curr:
+                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)])
+                    
+                    message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
+                    changes_detected += True
+                    
+                elif not prev and curr:
+                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)])
+                    
+                    message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
+                    changes_detected = True
                             
             if changes_detected:
-                send_notification(update, message.strip())
-
+                print(message.strip())
+                
             global_snapshot[chat_id] = current_snapshot  # Update snapshot
 
 def start_monitoring(update, context):
@@ -477,8 +484,9 @@ def button(update, context):
                                         f"{end_label} removed from selection.")
 
         selected_time_slots = sorted(selected_time_slots)
+
         subscribers[chat_id]["time_slots"] = selected_time_slots
-        save_subscribers(subscribers)
+        
         keyboard = []
         for idx in range(0, 96, N_TIME_SLOT):  # Group slots by 2 hours (8 slots per time block)
             start_time = (idx * TIME_SLOT_DURATION)

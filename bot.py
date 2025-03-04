@@ -240,8 +240,8 @@ def menu(update, context):
     keyboard = [
         [InlineKeyboardButton("Manage Equipment", callback_data="manage_equipment"),
          InlineKeyboardButton("My Equipment", callback_data="my_equipment")],
-        [InlineKeyboardButton("My Time Slots", callback_data="my_time_slots")],
-        [InlineKeyboardButton("Time Monitor", callback_data="time_monitor")],
+        [InlineKeyboardButton("Time Monitor", callback_data="time_monitor"), 
+          InlineKeyboardButton("My Time Slots", callback_data="my_time_slots")],
         [InlineKeyboardButton("Unsubscribe", callback_data="unsubscribe")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)

@@ -23,7 +23,7 @@ TIME_SLOT_DURATION = 0.25  # In hours
 N_TIME_SLOT = 8  # Number of table cells in one monitored slot
 
 global_snapshot = {}
-monitoring_active = False
+monitoring_active = True
 
 # Connect to PostgreSQL
 def get_db_connection():

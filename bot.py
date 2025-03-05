@@ -82,7 +82,7 @@ def get_today_url():
 
 def get_future_date(days_from_today: int) -> str:
     """Returns the date in 'dd.mm' format for the given number of days from today."""
-    if not (1 <= days_from_today <= 7):
+    if not (0 <= days_from_today <= 7):
         raise ValueError("days_from_today must be between 1 and 7")
 
     future_date = datetime.today() + timedelta(days=days_from_today)

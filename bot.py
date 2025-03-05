@@ -229,11 +229,11 @@ def monitor_bookings(update, context):
                     message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                     changes_detected = True
                     
-                elif not prev and curr:
-                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
-                    
-                    message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
-                    changes_detected = True
+                #elif not prev and curr:
+                #    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
+                #    
+                #    message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
+                #    changes_detected = True
                             
             if changes_detected:
                 print(message.strip())

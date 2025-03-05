@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import time
 import psycopg2
 from psycopg2.extras import Json
+import numpy as np
 
 # Telegram Bot Token
 TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
@@ -136,9 +137,6 @@ def extract_equipment_options():
 
 equipment_options = extract_equipment_options()
 
-def flatten(xss):
-    return [x for xs in xss for x in xs]
-
 # Command: Start
 def start(update, context):
     update.effective_message.reply_text("Welcome! Use /menu to access the bot's features.")
@@ -200,14 +198,16 @@ def monitor_bookings(update, context):
                 continue
 
             current_snapshot = extract_booking_table(user_equipment, selected_time_slots)
-            current_snapshot = flatten(current_snapshot)
+            current_snapshot = np.array(current_snapshot).flatten()
             if current_snapshot is None:
                 continue
-
-            global_snapshot[chat_id] = current_snapshot
+            
+            if chat_id not in global_snapshot:
+                global_snapshot[chat_id] = current_snapshot
+                continue
 
             previous_snapshot = global_snapshot[chat_id]
-            previous_snapshot = flatten(previous_snapshot)
+            previous_snapshot = np.array(previous_snapshot).flatten()
             message = ""
             changes_detected = False
 
@@ -224,13 +224,13 @@ def monitor_bookings(update, context):
                 curr = current_snapshot[i]
                 
                 if prev and not curr:
-                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)])
+                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
                     
                     message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                     changes_detected = True
                     
                 elif not prev and curr:
-                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)])
+                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
                     
                     message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                     changes_detected = True

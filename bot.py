@@ -210,6 +210,10 @@ def monitor_bookings(update, context):
             previous_snapshot = np.array(previous_snapshot).flatten()
             message = ""
             changes_detected = False
+            
+            mes = f'Same snapshot? {all(previous_snapshot == current_snapshot)}'
+            if chat_id == 491743114:
+                send_notification(update, mes)
 
             total_slots = len(previous_snapshot)
 

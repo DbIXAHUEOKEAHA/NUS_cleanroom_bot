@@ -218,16 +218,24 @@ def monitor_bookings(update, context):
             days = int(total_slots / (len(user_equipment) * len(selected_time_slots)))
         
             for i in range(total_slots):
-                equipment = user_equipment[int(i // (len(selected_time_slots)*days))]
+                try:
+                    equipment = user_equipment[int(i // (len(selected_time_slots)*days))]
+                except IndexError:
+                    equipment = ''
                 
-                day = int((i % (len(selected_time_slots) * days)) // len(selected_time_slots))
+                try:
+                    day = int((i % (len(selected_time_slots) * days)) // len(selected_time_slots))
+                except IndexError:
+                    day = 0
                 
                 prev = previous_snapshot[i]
                 curr = current_snapshot[i]
                 
                 if prev and not curr:
-                    slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
-                    
+                    try:
+                        slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
+                    except IndexError:
+                        slot_label = 'None'
                     message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                     changes_detected = True
                     

@@ -24,7 +24,7 @@ TIME_SLOT_DURATION = 0.25  # In hours
 N_TIME_SLOT = 8  # Number of table cells in one monitored slot
 
 global_snapshot = {}
-monitoring_active = True
+monitoring_active = False
 
 # Connect to PostgreSQL
 def get_db_connection():
@@ -211,10 +211,6 @@ def monitor_bookings(update, context):
             message = ""
             changes_detected = False
             
-            mes = f'Same snapshot? {all(previous_snapshot == current_snapshot)}'
-            if chat_id == 491743114:
-                send_notification(update, mes)
-
             total_slots = len(previous_snapshot)
 
             days = int(total_slots / (len(user_equipment) * len(selected_time_slots)))

@@ -488,6 +488,7 @@ def button(update, context):
         selected_time_slots = sorted(selected_time_slots)
 
         subscribers[chat_id]["time_slots"] = selected_time_slots
+        save_subscribers(subscribers)
         
         keyboard = []
         for idx in range(0, 96, N_TIME_SLOT):  # Group slots by 2 hours (8 slots per time block)

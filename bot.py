@@ -167,16 +167,18 @@ def extract_booking_table(equipment, time_slots):
 
     return extracted_rows if extracted_rows else None
 
-def send_notification(update, message):
+def send_notification(chat_id, message):
+    """Sends a personalized notification to a specific user."""
+    bot = Updater(token=TELEGRAM_BOT_TOKEN)
     try:
-        update.effective_message.reply_text(message)
+        bot.send_message(chat_id=chat_id, text=message)
     except telegram.error.NetworkError as e:
-        print(f"⚠️ Network error while sending message: {e}")
+        print(f"⚠️ Network error while sending message to {chat_id}: {e}")
         time.sleep(5)  # Wait and retry
         try:
-            update.effective_message.reply_text(message)
+            bot.send_message(chat_id=chat_id, text=message)
         except Exception as e:
-            print(f"❌ Failed again: {e}")  # Log and prevent a crash
+            print(f"❌ Failed again for {chat_id}: {e}")  # Log and prevent a crash
 
 def monitor_bookings(update, context):
     """Monitors the booking table and notifies subscribers of changes."""
@@ -236,7 +238,7 @@ def monitor_bookings(update, context):
                 #    changes_detected = True
                             
             if changes_detected:
-                send_notification(update, message.strip())
+                send_notification(chat_id, message.strip())
                 
             global_snapshot[chat_id] = current_snapshot  # Update snapshot
 

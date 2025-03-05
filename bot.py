@@ -228,8 +228,12 @@ def monitor_bookings(update, context):
                 except IndexError:
                     day = 0
                 
-                prev = previous_snapshot[i]
-                curr = current_snapshot[i]
+                try:
+                    prev = previous_snapshot[i]
+                    curr = current_snapshot[i]
+                except IndexError:
+                    prev = ''
+                    curr = ''
                 
                 if prev and not curr:
                     try:

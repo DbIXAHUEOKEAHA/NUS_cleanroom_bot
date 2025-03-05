@@ -236,7 +236,7 @@ def monitor_bookings(update, context):
                 #    changes_detected = True
                             
             if changes_detected:
-                print(message.strip())
+                send_notification(update, message.strip())
                 
             global_snapshot[chat_id] = current_snapshot  # Update snapshot
 

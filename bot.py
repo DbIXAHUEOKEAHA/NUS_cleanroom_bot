@@ -2,7 +2,7 @@ import threading
 import requests
 import telegram
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import time
@@ -169,7 +169,7 @@ def extract_booking_table(equipment, time_slots):
 
 def send_notification(chat_id, message):
     """Sends a personalized notification to a specific user."""
-    bot = Updater(token=TELEGRAM_BOT_TOKEN)
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
     try:
         bot.send_message(chat_id=chat_id, text=message)
     except telegram.error.NetworkError as e:

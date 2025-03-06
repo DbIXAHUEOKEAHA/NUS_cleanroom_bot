@@ -9,6 +9,7 @@ import time
 import psycopg2
 from psycopg2.extras import Json
 import numpy as np
+from collections import defaultdict
 
 # Telegram Bot Token
 TELEGRAM_BOT_TOKEN = "8064663105:AAE7RFqr0CO6dXYxRN9IHH9Cz3aE1MRPis0"
@@ -110,6 +111,66 @@ def float_to_time(float_time):
     time_str = f"{hours_12}:{minutes:02d} {period}"
     return time_str
 
+def merge_time_periods(time_list):
+    if not time_list:
+        return ""
+
+    # Detect AM/PM format (if any element has 'AM' or 'PM')
+    is_am_pm = any("AM" in t or "PM" in t for t in time_list)
+
+    # Define the appropriate time format based on detected format
+    time_format = "%I:%M %p" if is_am_pm else "%H:%M"
+
+    # Convert time strings to datetime objects for easier comparison
+    times = sorted([datetime.strptime(t, time_format) for t in time_list])
+
+    merged_periods = []
+    start_time = times[0]
+    prev_time = times[0]
+
+    for i in range(1, len(times)):
+        # Check if the current time is within 15 minutes of the previous one
+        if times[i] - prev_time > timedelta(minutes=15):
+            # If not continuous, finalize the previous range
+            if start_time == prev_time:
+                merged_periods.append(start_time.strftime(time_format))
+            else:
+                merged_periods.append(f"{start_time.strftime(time_format)} - {prev_time.strftime(time_format)}")
+            # Start a new range
+            start_time = times[i]
+
+        prev_time = times[i]
+
+    # Append the last range
+    if start_time == prev_time:
+        merged_periods.append(start_time.strftime(time_format))
+    else:
+        merged_periods.append(f"{start_time.strftime(time_format)} - {prev_time.strftime(time_format)}")
+
+    return ", ".join(merged_periods)
+
+def format_cancellations(people, machines, day_labels, slot_labels, merge_time_periods):
+    """Groups and formats cancellation messages efficiently."""
+    
+    if not (len(people) == len(machines) == len(day_labels) == len(slot_labels)):
+        raise ValueError("All input lists must have the same length.")
+    
+    # Group cancellations by (person, equipment, day)
+    grouped_cancellations = defaultdict(lambda: [])
+
+    for person, machine, day, slot in zip(people, machines, day_labels, slot_labels):
+        grouped_cancellations[(person, machine, day)].append(slot)
+
+    messages = []
+
+    for (person, machine, day), slots in grouped_cancellations.items():
+        # Merge time slots intelligently
+        merged_slots = merge_time_periods(sorted(slots))
+        
+        message = f"🔴 Cancellation: {person} removed from {machine} on {day}, Time Slot(s): {merged_slots}"
+        messages.append(message)
+
+    return "\n".join(messages)
 
 # Extract Booking Data (get first column as equipment options)
 def extract_equipment_options():
@@ -252,12 +313,21 @@ def monitor_bookings(update, context):
                 prev = previous_snapshot[i] if i < len(previous_snapshot) else ''
                 curr = current_snapshot[i] if i < len(current_snapshot) else ''
                 
+                people = []
+                machines = []
+                day_labels = []
+                slot_labels = []
+                
                 if prev and not curr:
                     try:
-                        slot_label = float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION)
+                        slot_labels.append(float_to_time(selected_time_slots[i % len(selected_time_slots)]*TIME_SLOT_DURATION))
                     except IndexError:
-                        slot_label = 'None'
-                    message += f"🔴 Cancellation: {prev} removed from {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
+                        slot_labels.append('None')
+                    
+                    people.append(prev)
+                    machines.append(equipment)
+                    day_labels.append(get_future_date(day))
+                    
                     changes_detected = True
                     
                 #elif not prev and curr:
@@ -266,6 +336,9 @@ def monitor_bookings(update, context):
                 #    message += f"🟢 New Booking: {curr} added to {equipment} on {get_future_date(day)}, Time Slot {slot_label}\n"
                 #    changes_detected = True
                             
+            
+            message = format_cancellations(people, machines, day_labels, slot_labels, merge_time_periods)
+            
             if changes_detected:
                 send_notification(chat_id, message.strip())
                 

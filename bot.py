@@ -337,9 +337,13 @@ def monitor_bookings(update, context):
                 #    changes_detected = True
                             
             
-            message = format_cancellations(people, machines, day_labels, slot_labels, merge_time_periods)
             
             if changes_detected:
+                message = format_cancellations(people, machines, day_labels, slot_labels, merge_time_periods)
+                print(f'People: {people}')
+                print(f'Equipment: {machines}')
+                print(f'Days: {day_labels}')
+                print(f'Slots: {slot_labels}')
                 send_notification(chat_id, message.strip())
                 
             global_snapshot[chat_id] = current_snapshot  # Update snapshot

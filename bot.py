@@ -23,7 +23,8 @@ SLEEP_TIME = 30
 TIME_SLOT_DURATION = 0.25  # In hours
 N_TIME_SLOT = 8  # Number of table cells in one monitored slot
 
-global_snapshot = {}
+global_snapshot = {} #Dictioanry with parsed personalized tables
+full_table = []  # Global variable to store the whole table
 monitoring_active = False
 
 # Connect to PostgreSQL
@@ -141,28 +142,53 @@ equipment_options = extract_equipment_options()
 def start(update, context):
     update.effective_message.reply_text("Welcome! Use /menu to access the bot's features.")
 
-def extract_booking_table(equipment, time_slots):
-    """Extracts booking status for given equipment and time slots."""
+def update_full_table():
+    """Fetches and parses the booking table once for all subscribers."""
+    global full_table
     url = get_today_url()
     response = requests.get(url)
 
     if response.status_code != 200:
-        return None
+        print("⚠️ Failed to fetch booking data.")
+        full_table = None
+        return
 
     soup = BeautifulSoup(response.text, "html.parser")
     tables = soup.find_all("table")
 
+    # Extract full table data
+    full_table = []
+    for table in tables:
+        rows = table.find_all("tr")
+        table_data = []
+        for row in rows:
+            cells = row.find_all(["th", "td"])
+            row_data = []
+            for cell in cells:
+                colspan = int(cell.get("colspan", 1))
+                cell_text = cell.text.strip()
+                row_data.extend([cell_text] * colspan)  # Handle colspan
+            table_data.append(row_data)
+        full_table.append(table_data)
+
+
+def extract_booking_table(equipment, time_slots):
+    """Extracts booking status for given equipment and time slots from the global full_table."""
+    if not full_table:
+        print("⚠️ Full table data is missing. Make sure update_full_table() is called first.")
+        return None
+
     extracted_rows = []
     for i in equipment:
-        for day_index, table in enumerate(tables):
-            data = table.find_all("tr")
-            rows = data[equipment_options.index(i)].find_all(["th", "td"])
-            row_data = []
-            for row in rows:
-                colspan = int(row.get("colspan", 1))
-                cell_text = row.text.strip()
-                row_data.extend([cell_text] * colspan)
+        equipment_index = equipment_options.index(i)
+        
+        for day_index, table in enumerate(full_table):
+            if equipment_index >= len(table):
+                continue  # Avoid out-of-range errors
 
+            row_data = table[equipment_index]  # Get the row for this equipment
+            
+            # Extract only the required time slots
             extracted_rows.append([row_data[j + 1] for j in time_slots if j < len(row_data) - 1])
 
     return extracted_rows if extracted_rows else None
@@ -192,6 +218,8 @@ def monitor_bookings(update, context):
             monitoring_active = False  # Stop monitoring if no subscribers
             return
 
+        update_full_table()  # Fetch the latest booking table once per cycle
+
         for chat_id, user_data in subscribers.items():
             user_equipment = user_data.get("equipment", [])
             selected_time_slots = user_data.get("time_slots", [])
@@ -200,9 +228,9 @@ def monitor_bookings(update, context):
                 continue
 
             current_snapshot = extract_booking_table(user_equipment, selected_time_slots)
-            current_snapshot = np.array(current_snapshot).flatten()
             if current_snapshot is None:
                 continue
+            current_snapshot = np.array(current_snapshot).flatten()
             
             if chat_id not in global_snapshot:
                 global_snapshot[chat_id] = current_snapshot
@@ -218,22 +246,11 @@ def monitor_bookings(update, context):
             days = int(total_slots / (len(user_equipment) * len(selected_time_slots)))
         
             for i in range(total_slots):
-                try:
-                    equipment = user_equipment[int(i // (len(selected_time_slots)*days))]
-                except IndexError:
-                    equipment = ''
-                
-                try:
-                    day = int((i % (len(selected_time_slots) * days)) // len(selected_time_slots))
-                except IndexError:
-                    day = 0
-                
-                try:
-                    prev = previous_snapshot[i]
-                    curr = current_snapshot[i]
-                except IndexError:
-                    prev = ''
-                    curr = ''
+                equipment = user_equipment[int(i // (len(selected_time_slots) * days))] if i // (len(selected_time_slots) * days) < len(user_equipment) else ''
+                day = int((i % (len(selected_time_slots) * days)) // len(selected_time_slots)) if (i % (len(selected_time_slots) * days)) // len(selected_time_slots) < len(selected_time_slots) else 0
+
+                prev = previous_snapshot[i] if i < len(previous_snapshot) else ''
+                curr = current_snapshot[i] if i < len(current_snapshot) else ''
                 
                 if prev and not curr:
                     try:

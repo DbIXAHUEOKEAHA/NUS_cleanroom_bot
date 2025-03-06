@@ -211,7 +211,7 @@ def update_full_table():
 
     if response.status_code != 200:
         print("⚠️ Failed to fetch booking data.")
-        full_table = None
+        #full_table = None
         return
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -234,6 +234,9 @@ def update_full_table():
 
 
 def extract_booking_table(equipment, time_slots):
+    
+    global full_table
+    
     """Extracts booking status for given equipment and time slots from the global full_table."""
     if not full_table:
         print("⚠️ Full table data is missing. Make sure update_full_table() is called first.")

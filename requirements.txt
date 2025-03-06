@@ -6,3 +6,4 @@ beautifulsoup4==4.11.1
 python-telegram-bot==13.11
 numpy
 psycopg2
+collections

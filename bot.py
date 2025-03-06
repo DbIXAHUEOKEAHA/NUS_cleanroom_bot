@@ -305,6 +305,12 @@ def monitor_bookings(update, context):
             total_slots = len(previous_snapshot)
 
             days = int(total_slots / (len(user_equipment) * len(selected_time_slots)))
+            
+            people = []
+            machines = []
+            day_labels = []
+            slot_labels = []
+                
         
             for i in range(total_slots):
                 equipment = user_equipment[int(i // (len(selected_time_slots) * days))] if i // (len(selected_time_slots) * days) < len(user_equipment) else ''
@@ -312,11 +318,6 @@ def monitor_bookings(update, context):
 
                 prev = previous_snapshot[i] if i < len(previous_snapshot) else ''
                 curr = current_snapshot[i] if i < len(current_snapshot) else ''
-                
-                people = []
-                machines = []
-                day_labels = []
-                slot_labels = []
                 
                 if prev and not curr:
                     try:
@@ -340,10 +341,6 @@ def monitor_bookings(update, context):
             
             if changes_detected:
                 message = format_cancellations(people, machines, day_labels, slot_labels, merge_time_periods)
-                print(f'People: {people}')
-                print(f'Equipment: {machines}')
-                print(f'Days: {day_labels}')
-                print(f'Slots: {slot_labels}')
                 send_notification(chat_id, message.strip())
                 
             global_snapshot[chat_id] = current_snapshot  # Update snapshot

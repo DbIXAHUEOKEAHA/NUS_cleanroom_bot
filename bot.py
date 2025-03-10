@@ -27,6 +27,7 @@ N_TIME_SLOT = 8  # Number of table cells in one monitored slot
 global_snapshot = {} #Dictioanry with parsed personalized tables
 full_table = []  # Global variable to store the whole table
 monitoring_active = False
+current_date = datetime.today().strftime("%Y-%m-%d")  # Track the current date
 
 # Connect to PostgreSQL
 def get_db_connection():
@@ -85,7 +86,8 @@ def get_today_url():
 def get_future_date(days_from_today: int) -> str:
     """Returns the date in 'dd.mm' format for the given number of days from today."""
     if not (0 <= days_from_today <= 7):
-        raise ValueError("days_from_today must be between 1 and 7")
+        print(f"days_from_today must be between 0 and 7, got {days_from_today}")
+        days_from_today = 0
 
     future_date = datetime.today() + timedelta(days=days_from_today)
     return future_date.strftime("%d.%m")
@@ -272,7 +274,7 @@ def send_notification(chat_id, message):
 
 def monitor_bookings(update, context):
     """Monitors the booking table and notifies subscribers of changes."""
-    global global_snapshot, monitoring_active
+    global global_snapshot, monitoring_active, current_date
 
     while monitoring_active:
         time.sleep(SLEEP_TIME)
@@ -283,6 +285,14 @@ def monitor_bookings(update, context):
             return
 
         update_full_table()  # Fetch the latest booking table once per cycle
+
+        # Check if the date has changed
+        new_date = datetime.today().strftime("%Y-%m-%d")
+        if new_date != current_date:
+            print(f"🔄 Date changed from {current_date} to {new_date}. Resetting snapshots.")
+            global_snapshot = {}  # Reset snapshots for all users
+            current_date = new_date  # Update the current date
+            continue  # Skip this iteration to avoid false notifications
 
         for chat_id, user_data in subscribers.items():
             user_equipment = user_data.get("equipment", [])

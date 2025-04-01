@@ -3,6 +3,7 @@ import requests
 import telegram
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
+from telebot.apihelper import ApiTelegramException
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import time
@@ -271,6 +272,8 @@ def send_notification(chat_id, message):
             bot.send_message(chat_id=chat_id, text=message)
         except Exception as e:
             print(f"❌ Failed again for {chat_id}: {e}")  # Log and prevent a crash
+    except Exception as ex:
+        print(f'Exception happened while sending a notification to {chat_id}: {ex}')
 
 def monitor_bookings(update, context):
     """Monitors the booking table and notifies subscribers of changes."""

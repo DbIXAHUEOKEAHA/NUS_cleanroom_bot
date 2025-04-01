@@ -3,7 +3,6 @@ import requests
 import telegram
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
-from telebot.apihelper import ApiTelegramException
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import time

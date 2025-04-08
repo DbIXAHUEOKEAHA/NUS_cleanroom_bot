@@ -208,31 +208,36 @@ def start(update, context):
 def update_full_table():
     """Fetches and parses the booking table once for all subscribers."""
     global full_table
-    url = get_today_url()
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        print("⚠️ Failed to fetch booking data.")
-        #full_table = None
-        return
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    tables = soup.find_all("table")
-
-    # Extract full table data
-    full_table = []
-    for table in tables:
-        rows = table.find_all("tr")
-        table_data = []
-        for row in rows:
-            cells = row.find_all(["th", "td"])
-            row_data = []
-            for cell in cells:
-                colspan = int(cell.get("colspan", 1))
-                cell_text = cell.text.strip()
-                row_data.extend([cell_text] * colspan)  # Handle colspan
-            table_data.append(row_data)
-        full_table.append(table_data)
+    
+    try:
+    
+        url = get_today_url()
+        response = requests.get(url)
+    
+        if response.status_code != 200:
+            print("⚠️ Failed to fetch booking data.")
+            #full_table = None
+            return
+    
+        soup = BeautifulSoup(response.text, "html.parser")
+        tables = soup.find_all("table")
+    
+        # Extract full table data
+        full_table = []
+        for table in tables:
+            rows = table.find_all("tr")
+            table_data = []
+            for row in rows:
+                cells = row.find_all(["th", "td"])
+                row_data = []
+                for cell in cells:
+                    colspan = int(cell.get("colspan", 1))
+                    cell_text = cell.text.strip()
+                    row_data.extend([cell_text] * colspan)  # Handle colspan
+                table_data.append(row_data)
+            full_table.append(table_data)
+    except Exception as ex:
+        print(f'Exception happened when extracting the global table: {ex}')
 
 
 def extract_booking_table(equipment, time_slots):
